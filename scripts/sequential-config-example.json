@@ -1,0 +1,37 @@
+{
+    "path": "../data/AirPassengers.csv",
+    "model_type": "sequential",
+    "layers": [
+        {
+            "class": "RNN",
+            "units": 64,
+            "activation": "tanh",
+            "use_bias": true,
+            "stateful": false
+        },
+        {
+            "class": "RNN",
+            "units": 48,
+            "activation": "tanh",
+            "use_bias": true,
+            "stateful": false
+        },
+        {
+            "class": "Dense",
+            "units": 1,
+            "activation": null,
+            "use_bias": true
+        }
+    ],
+    "time_steps": 36,
+    "val_len": 12,
+    "target_time_steps": 12,
+    "epochs": 2500,
+    "verbose_rate": 100,
+    "batch_size": null,
+    "loss": "mae",
+    "optimizer": "adam",
+    "optimizer_args": {
+        "alpha": 0.001
+    }
+}

@@ -1,0 +1,47 @@
+# cache
+__pycache__/
+.cache
+.pytest_cache/
+
+# virtual environment
+.venv/
+venv/
+env/
+.python-version
+
+# packaging
+*.egg-info/
+*.egg
+
+# jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# IDE / editor settings
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# os-specific files
+.DS_Store
+Thumbs.db
+
+# data / ml artifacts
+*.log
+*.out
+*.err
+*.h5
+*.pkl
+*.ckpt
+*.pt
+*.pth
+*.onnx
+
+# temp files
+*.tmp
+*.swp
+*.bak
+
+# model fit directory
+model_fit/

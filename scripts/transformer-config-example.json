@@ -1,0 +1,20 @@
+{
+    "path": "../data/AirPassengers.csv",
+    "model_type": "transformer",
+    "d_model": 50,
+    "num_heads": 1,
+    "num_decoder_layers": 6,
+    "units": 64,
+    "normalize": false,
+    "drop_rate": 0,
+    "time_steps": 120,
+    "target_time_steps": 12,
+    "val_len": 12,
+    "epochs": 1000,
+    "verbose_rate": 100,
+    "loss": "mae",
+    "optimizer": "adam",
+    "optimizer_args": {
+        "alpha": 0.001
+    }
+}
