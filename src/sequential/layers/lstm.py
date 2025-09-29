@@ -39,31 +39,41 @@ class LSTM(Layer):
         self.sigmoid = Sigmoid()
         self.tanh = Tanh()
 
-    def __call__(self, inputs, inference_mode=False):
+    def __call__(self, X, inference_mode=False):
+        '''
+        Args
+        ----
+        X: np.ndarray 
+            Inputs of shape (num_batches, time_steps, features).
+        inference_mode: bool
+            If True, the last hidden and cell states aren't saved 
+            for the next call
+        '''
         if not self.built:
-            self.build(inputs)
-        self.inputs_shape = inputs.shape
+            self.build(X)
+        self.X_shape = X.shape
         self.fcache = []
         # unpack trainable params
-        weights = self.trainable_params['W']
+        W = self.trainable_params['W']
         bias = self.trainable_params['b']
-        # init hidden states
-        hidden_states = np.zeros((inputs.shape[0], inputs.shape[1], self.units))
+        # init hidden state
+        hidden_states = np.zeros((X.shape[0], X.shape[1], self.units))
         h = None
         c = None
         if self.stateful and self.h is not None and self.c is not None:
             # use the n most recent batches, as many as are in the inputs
-            h, c = self.h[-inputs.shape[0]:], self.c[-inputs.shape[0]:]
+            h, c = self.h[-X.shape[0]:], self.c[-X.shape[0]:]
         else:
-            h = np.zeros((inputs.shape[0], self.units))
-            c = np.zeros((inputs.shape[0], self.units))
+            h = np.zeros((X.shape[0], self.units))
+            c = np.zeros((X.shape[0], self.units))
         # iterate through the time steps
-        for i in range(inputs.shape[1]):
-            x = inputs[:, i, :]
-            # concatenate the hidden state and the
-            # inputs from the current time step
-            X = np.concatenate([h, x], axis=1)
-            z = np.dot(X, weights)
+        for i in range(X.shape[1]):
+            # inputs for the current time step
+            x = X[:, i, :]
+            # concatenate the inputs and hidden state for the current
+            # time step to calculate z with a single dot product
+            xh = np.concatenate([x, h], axis=1)
+            z = np.dot(xh, W)
             if bias is not None:
                 z += bias
             # forget gate
@@ -84,7 +94,7 @@ class LSTM(Layer):
             hidden_states[:, i, :] = h
             # cache intermediate variables at current time step for backprop
             self.fcache.append({'fg': fg, 'ig': ig, 'cand': cand,
-                               'og': og, 'X': X, 'ca': ca, 'c': c})
+                               'og': og, 'xh': xh, 'ca': ca, 'c': c})
         # cache the last hidden/cell states for the next call if not
         # in inference mode
         if not inference_mode:
@@ -112,23 +122,23 @@ class LSTM(Layer):
         the propagated gradients.
         '''
         # unpack trainable params
-        weights = self.trainable_params['W']
-        bias = self.trainable_params['b']
+        W = self.trainable_params['W']
+        b = self.trainable_params['b']
         # initialize gradients for the weights with zeros,
         # gradients will be cumulatively summed while iterating
         # backwards through the time steps
-        grad_weights = np.zeros_like(weights)
-        grad_inputs = np.zeros(self.inputs_shape)
-        if bias is not None:
-            grad_bias = np.zeros_like(bias)
+        dW = np.zeros_like(W)
+        dX = np.zeros(self.X_shape)
+        if b is not None:
+            db = np.zeros_like(b)
         # initialize the upstream cell state and hidden gradients
-        upstream_dc = np.zeros((self.inputs_shape[0], self.units))
-        upstream_dh = np.zeros((self.inputs_shape[0], self.units))
+        upstream_dc = np.zeros((self.X_shape[0], self.units))
+        upstream_dh = np.zeros((self.X_shape[0], self.units))
         # iterate backwards through the time steps
-        for i in reversed(range(self.inputs_shape[1])):
+        for i in reversed(range(self.X_shape[1])):
             # unpack intermediate variables for current time step
             cache = self.fcache[i]
-            X = cache['X']  # concatenated hidden state and input
+            xh = cache['xh']  # concatenated input and hidden state
             fg = cache['fg']  # forget gate
             ig = cache['ig']  # input gate
             cand = cache['cand']  # candidate values
@@ -168,46 +178,47 @@ class LSTM(Layer):
             # stack activation function gradients, maintaining the same
             # gate order as the forward pass
             dz = np.hstack([dfg, dig, dcand, dog])
-            # gradient of weights in z = np.dot(X, weights)
-            grad_weights += np.dot(X.T, dz)
-            # gradient of bias in z = np.dot(X, weights) + bias
-            if bias is not None:
-                grad_bias += np.sum(dz, axis=0, keepdims=True)
-            # gradient of X in z = np.dot(X, weights)
-            dX = np.dot(dz, weights.T)
-            # X is a concatenation of h (hidden state) and x
-            # (input) so dX needs to be sliced get the gradients
-            # for x (input for current time step)
-            dx, dh = dX[:, self.units:], dX[:, :self.units]
+            # gradient of W in z = np.dot(xh, W)
+            dW += np.dot(xh.T, dz)
+            # gradient of b in z = np.dot(xh, W) + b
+            if b is not None:
+                db += np.sum(dz, axis=0, keepdims=True)
+            # gradient of xh in z = np.dot(xh, W)
+            dxh = np.dot(dz, W.T)
+            # xh is a concatenation of x (input) and h (hidden state)
+            # at the current time step, so dxh needs to be sliced get
+            # the gradients for each
+            dx, dh = dxh[:, :self.X_shape[-1]], dxh[:, self.X_shape[-1]:]
             # save input gradients for the current time step
-            grad_inputs[:, i, :] = dx
+            dX[:, i, :] = dx
             # update upstream hidden gradients for the next time step
             upstream_dh = dh
 
         # save trainable param gradients for the optimization step
-        self.trainable_params_grad = {'W': grad_weights}
-        if bias is not None:
-            self.trainable_params_grad['b'] = grad_bias
+        self.trainable_params_grad = {'W': dW}
+        if b is not None:
+            self.trainable_params_grad['b'] = db
 
         # return input gradients
-        return grad_inputs
+        return dX
 
-    def build(self, inputs):
-        if inputs.ndim != 3:
+    def build(self, X):
+        if X.ndim != 3:
             raise ValueError('Input needs to have 3 dimensions: (batch_size, time_steps, features)')
         # initialize weights for the input, hidden state, and gates
         # based on the last dimension of the input. The number of
         # units is added to the rows to account for the hidden state,
         # and the columns are multiplied by 4 to include the forget, input,
         # cell, and output gates.
-        weights = .01 * np.random.randn(inputs.shape[-1] + self.units, self.units * 4)
-        bias = None
+        W = .01 * np.random.randn(X.shape[-1] + self.units, self.units * 4)
+        # bias
+        b = None
         if self.use_bias:
-            bias = np.zeros((1, self.units * 4))
+            b = np.zeros((1, self.units * 4))
             # init the forget bias with ones to encourage the model
             # to retain information early on
-            bias[:self.units] = 1
-        self.trainable_params = {'W': weights, 'b': bias}
+            b[:self.units] = 1
+        self.trainable_params = {'W': W, 'b': b}
         self.built = True
 
     def reset_state(self):

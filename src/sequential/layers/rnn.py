@@ -7,9 +7,9 @@ class RNN(Layer):
     '''
     Recurrent neural net (RNN) layer.
 
-    Processes sequential inputs by maintaining a hidden 
-    state across time steps. At each step, the hidden state 
-    is updated based on the current input and the previous 
+    Processes sequential inputs by maintaining a hidden
+    state across time steps. At each step, the hidden state
+    is updated based on the current input and the previous
     hidden state. Returns hidden states for all time steps.
     '''
 
@@ -20,7 +20,7 @@ class RNN(Layer):
         units: int
             Number of input and hidden state weights, a.k.a neurons.
         activation: str
-            Activation function to apply ('relu', 'tanh', or None), 
+            Activation function to apply ('relu', 'tanh', or None),
             defaults to tanh.
         use_bias: bool
             If True, includes a bias term.
@@ -42,36 +42,47 @@ class RNN(Layer):
         self.h = None
         self.built = False
 
-    def __call__(self, inputs, inference_mode=False):
+    def __call__(self, X, inference_mode=False):
+        '''
+        Args
+        ----
+        X: np.ndarray
+            Inputs of shape (num_batches, time_steps, features).
+        inference_mode: bool
+            If True, the last hidden state isn't saved for
+            the next call
+        '''
         if not self.built:
-            self.build(inputs)
+            self.build(X)
         # unpack trainable params
-        weights = self.trainable_params['W']
-        bias = self.trainable_params['b']
-        self.inputs = inputs
+        W = self.trainable_params['W']
+        b = self.trainable_params['b']
+        self.X = X
         self.fcache = []
-        self.hidden_states = np.zeros((inputs.shape[0], inputs.shape[1], self.units))
+        self.hidden_states = np.zeros((X.shape[0], X.shape[1], self.units))
         # init the hidden state with cached h if stateful, otherwise zeros
         if self.stateful and self.h is not None:
             # use the n most recent batches, as many as are in the inputs
-            h = self.h[-inputs.shape[0]:]
+            h = self.h[-X.shape[0]:]
         else:
-            h = np.zeros((inputs.shape[0], self.units))
+            h = np.zeros((X.shape[0], self.units))
         # iterate through the time steps
-        for i in range(inputs.shape[1]):
+        for i in range(X.shape[1]):
             # inputs for the current time step
-            x = inputs[:, i, :]
-            X = np.concatenate([h, x], axis=1)
+            x = X[:, i, :]
+            # concatenate the inputs and hidden state for the current
+            # time step to calculate z with a single dot product
+            xh = np.concatenate([x, h], axis=1)
             # calc un-activated output for the current time step
-            z = np.dot(X, weights)
+            z = np.dot(xh, W)
             if self.use_bias:
-                z += bias
+                z += b
             # activate output to get current hidden state
             h = self.activate(z)
             # save the hidden state for the current time step
             self.hidden_states[:, i, :] = h
             # cache intermediate variables for backprop
-            self.fcache.append({'X': X})
+            self.fcache.append({'xh': xh})
         # cache the last hidden state if not in inference mode
         if not inference_mode:
             self.h = h
@@ -98,60 +109,61 @@ class RNN(Layer):
         the propagated gradients.
         '''
         # unpack trainable params
-        weights = self.trainable_params['W']
-        bias = self.trainable_params['b']
+        W = self.trainable_params['W']
+        b = self.trainable_params['b']
         # initialize gradients for the inputs, weights, and bias
-        grad_inputs = np.zeros_like(self.inputs)
-        grad_weights = np.zeros_like(weights)
-        grad_bias = np.zeros_like(bias) if bias is not None else None
+        dX = np.zeros_like(self.X)
+        dW = np.zeros_like(W)
+        db = np.zeros_like(b) if b is not None else None
         # initialize upstream h gradients
-        upstream_dh = np.zeros((self.inputs.shape[0], self.units))
+        upstream_dh = np.zeros((self.X.shape[0], self.units))
         # iterate backwards through the time steps
-        for i in reversed(range(self.inputs.shape[1])):
-            # cached input for the current time step
-            X = self.fcache[i]['X']
+        for i in reversed(range(self.X.shape[1])):
+            # cached input/hidden state for the current time step
+            xh = self.fcache[i]['xh']
             # hidden state for the current time step
             h = self.hidden_states[:, i, :]
             # upstream gradients for the current time step, adding in upstream
             # h gradients
             ug = upstream_grad[:, i, :] + upstream_dh
-            # gradients of z in h = self.activate(z), multiplied by upstream gradients
+            # gradient of z in h = self.activate(z), multiplied by upstream gradients
             dz = self.activate.backward(h) * ug
             # gradient of bias in z += bias, adding bias gradients from previous
             # time steps
-            if bias is not None:
-                grad_bias += np.sum(dz, axis=0, keepdims=True)
-            # gradients of weights in z = np.dot(X, weights),
+            if b is not None:
+                db += np.sum(dz, axis=0, keepdims=True)
+            # gradient of W in z = np.dot(xh, W),
             # adding gradients from previous time steps
-            grad_weights += np.dot(X.T, dz)
-            # gradients of X in z = np.dot(X, weights)
-            dX = np.dot(dz, weights.T)
-            # X is a concatenation of h (hidden state) and x
-            # (input), so dX needs to be sliced get the gradients
-            # for each
-            dh, dx = dX[:, :self.units], dX[:, self.units:]
+            dW += np.dot(xh.T, dz)
+            # gradient of xh in z = np.dot(xh, W)
+            dxh = np.dot(dz, W.T)
+            # xh is a concatenation of x (input) and h (hidden state)
+            # at the current time step, so dxh needs to be sliced get
+            # the gradients for each
+            dx, dh = dxh[:, :self.X.shape[-1]], dxh[:, self.X.shape[-1]:]
             # save input gradients for the current time step
-            grad_inputs[:, i, :] = dx
+            dX[:, i, :] = dx
             # update upstream hidden gradients for the next time step
             upstream_dh = dh
 
         # save trainable param gradients for the optimization step
-        self.trainable_params_grad = {'W': grad_weights}
-        if bias is not None:
-            self.trainable_params_grad['b'] = grad_bias
+        self.trainable_params_grad = {'W': dW}
+        if b is not None:
+            self.trainable_params_grad['b'] = db
 
         # return input gradients
-        return grad_inputs
+        return dX
 
-    def build(self, inputs):
-        if inputs.ndim != 3:
+    def build(self, X):
+        if X.ndim != 3:
             raise ValueError('Input needs to have 3 dimensions: (batch_size, time_steps, features)')
         # initialize weights for the inputs and hidden state based
         # on the last dimension of the input. The number of units
         # is added to the rows to account for the hidden state.
-        weights = .01 * np.random.randn(inputs.shape[-1] + self.units, self.units)
-        bias = np.zeros((1, self.units)) if self.use_bias else None
-        self.trainable_params = {'W': weights, 'b': bias}
+        W = .01 * np.random.randn(X.shape[-1] + self.units, self.units)
+        # bias
+        b = np.zeros((1, self.units)) if self.use_bias else None
+        self.trainable_params = {'W': W, 'b': b}
         self.built = True
 
     def reset_state(self):

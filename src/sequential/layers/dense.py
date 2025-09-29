@@ -7,7 +7,7 @@ class Dense(Layer):
     '''
     Fully connected dense layer.
 
-    Applies a linear transformation to the inputs (z = inputs @ W + b) 
+    Applies a linear transformation to the inputs `X` (z = X @ W + b) 
     followed by an optional activation function.
     '''
 
@@ -33,21 +33,25 @@ class Dense(Layer):
         self.use_bias = use_bias
         self.built = False
 
-    def __call__(self, inputs):
+    def __call__(self, X):
+        '''
+        X: np.ndarray
+            Inputs of shape (num_batches, time_steps, features).
+        '''
         if not self.built:
-            self.build(inputs)
+            self.build(X)
         # unpack trainable params
         W = self.trainable_params['W']
         b = self.trainable_params['b']
         # apply linear projection
-        z = np.matmul(inputs, W)
+        z = np.matmul(X, W)
         # add bias
         if b is not None:
             z += b
         # activation function for nonlinearity
         a = self.activate(z) if self.activate is not None else None
         # cache intermediate variables for backprop
-        self.fcache = {'a': a, 'inputs': inputs}
+        self.fcache = {'a': a, 'X': X}
         return a if a is not None else z
 
     def backward(self, upstream_grad):
@@ -65,7 +69,7 @@ class Dense(Layer):
         the propagated gradients.
         '''
         # unpack intermediate variables
-        inputs = self.fcache['inputs']
+        X = self.fcache['X']
         a = self.fcache['a']
         # unpack trainable params
         W = self.trainable_params['W']
@@ -79,7 +83,7 @@ class Dense(Layer):
         # gradient of W in X_proj = np.dot(X, W), aligning
         # X and dX for matrix multiplication, then summing over the
         # batches so that dW.shape == W.shape
-        dW = np.sum(np.matmul(inputs.transpose(0, 2, 1), upstream_grad), axis=0)
+        dW = np.sum(np.matmul(X.transpose(0, 2, 1), upstream_grad), axis=0)
         # gradient of bias in z += b, which is the batch sum of
         # upstream gradients
         db = None
@@ -94,12 +98,13 @@ class Dense(Layer):
         self.trainable_params_grad = {'W': dW}
         if b is not None:
             self.trainable_params_grad['b'] = db
-        # return gradient of the inputs in z = np.matmul(inputs, W)
+        # return gradient of the X in z = np.matmul(X, W)
         return np.dot(upstream_grad, W.T)
 
-    def build(self, inputs):
+    def build(self, X):
         # initialize weights based on last dimension of the input
-        W = .01 * np.random.randn(inputs.shape[-1], self.units)
+        W = .01 * np.random.randn(X.shape[-1], self.units)
+        # bias
         b = np.zeros((1, self.units)) if self.use_bias else None
         self.trainable_params = {'W': W, 'b': b}
         self.built = True

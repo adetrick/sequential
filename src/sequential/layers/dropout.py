@@ -27,7 +27,8 @@ class Dropout:
         Args
         ----
         X: np.ndarray
-            Input data to apply the dropout to.
+            Inputs of shape (num_batches, time_steps, features) 
+            to apply the dropout to.
         inference_mode: bool
             If True, dropout is disabled and inputs are returned 
             unchanged.
