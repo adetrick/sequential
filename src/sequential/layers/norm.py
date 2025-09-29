@@ -6,7 +6,7 @@ class LayerNorm(Layer):
     '''
     Layer normalization layer.
 
-    Normalizes the inputs across a specified axis by subtracting 
+    Normalizes the inputs `X` across a specified axis by subtracting 
     the mean and dividing by the standard deviation. Then applies 
     learnable linear transformation with scale (gamma) and shift 
     (beta) parameters. This helps stabilize and accelerate training 
@@ -31,28 +31,32 @@ class LayerNorm(Layer):
         self.axis = axis
         self.built = False
 
-    def __call__(self, x):
+    def __call__(self, X):
+        '''
+        X: np.ndarray
+            Inputs of shape (num_batches, time_steps, features).
+        '''
         if not self.built:
-            self.build(x)
+            self.build(X)
         # unpack trainable params
         gamma = self.trainable_params['gamma']
         beta = self.trainable_params['beta']
         # calc the mean across the last dimension
-        mean = np.mean(x, axis=self.axis, keepdims=True)
+        mean = np.mean(X, axis=self.axis, keepdims=True)
         # calc the variance across the last dimension,
         # adding a small epsilon to prevent devision by zero
-        var = np.var(x, axis=self.axis, keepdims=True) + self.eps
+        var = np.var(X, axis=self.axis, keepdims=True) + self.eps
         # calc the standard deviation across the last dimension
         std = np.sqrt(var)
         # calculate x minus the mean as a separate
         # variable for easier backprop
-        x_mu = x - mean
+        X_mu = X - mean
         # normalize
-        norm = x_mu / std
+        norm = X_mu / std
         # linearly transform normalized values
         out = (gamma * norm) + beta
         # cache intermediate variables for backprop
-        self.fcache = {'norm': norm, 'var': var, 'std': std, 'x': x, 'x_mu': x_mu}
+        self.fcache = {'norm': norm, 'var': var, 'std': std, 'X': X, 'X_mu': X_mu}
 
         return out
 
@@ -76,9 +80,9 @@ class LayerNorm(Layer):
         norm = self.fcache['norm']
         var = self.fcache['var']
         std = self.fcache['std']
-        x = self.fcache['x']
-        x_mu = self.fcache['x_mu']
-        N = x.shape[-1]
+        X = self.fcache['X']
+        X_mu = self.fcache['X_mu']
+        N = X.shape[-1]
         # gradient of gamma in out = (gamma * norm) + beta, summing the gradients
         # over the batch and time step dimensions
         dgamma = np.sum(norm * upstream_grad, axis=(0, 1))
@@ -87,27 +91,27 @@ class LayerNorm(Layer):
         # gradient of beta in out = (gamma * norm) + beta, summing the gradients
         # over the batch and time step dimensions
         dbeta = np.sum(upstream_grad, axis=(0, 1))
-        # gradient of x_mu in norm = x_mu / std, multiplied by upstream dnorm
-        dx_mu = (1 / std) * dnorm
-        # gradient of std in norm = x_mu / std, multiplied by upstream dnorm
-        # Note: rewrite as (x - mean) * std**-1 before calculating gradient
-        dstd = (x_mu) * -1 * std**-2 * dnorm
-        # gradient of mean in x_mu = x - mean, multiplied by upstream dx_mu
-        dmean = -1 * dx_mu
-        # gradient of x in x_mu = x - mean,
-        dx = 1 * dx_mu
+        # gradient of X_mu in norm = X_mu / std, multiplied by upstream dnorm
+        dX_mu = (1 / std) * dnorm
+        # gradient of std in norm = X_mu / std, multiplied by upstream dnorm
+        # Note: rewrite as (X - mean) * std**-1 before calculating gradient
+        dstd = (X_mu) * -1 * std**-2 * dnorm
+        # gradient of mean in X_mu = X - mean, multiplied by upstream dX_mu
+        dmean = -1 * dX_mu
+        # gradient of X in X_mu = X - mean,
+        dX = 1 * dX_mu
         # gradient of var in std = np.sqrt(var + 1e-5), multiplied by upstream dstd
         dvar = ((1 / 2) * var**(-1 / 2)) * dstd
-        # gradient of x in var = np.var(x, axis=self.axis, keepdims=True), mulitplied by upstream dvar
-        # and adding upstream dx
-        dx = ((2 / N) * (x_mu) * dvar) + dx
-        # gradient of x in mean = np.mean(x, axis=self.axis, keepdims=True), multiplied by upstream dmean
-        # and adding upstream dx
-        dx = ((1 / N) * dmean) + dx
+        # gradient of X in var = np.var(X, axis=self.axis, keepdims=True),
+        # multiplied by upstream dvar and adding upstream dx
+        dX = ((2 / N) * (X_mu) * dvar) + dX
+        # gradient of X in mean = np.mean(X, axis=self.axis, keepdims=True),
+        # multiplied by upstream dmean and adding upstream dX
+        dX = ((1 / N) * dmean) + dX
         # save trainable param gradients for the optimization step
         self.trainable_params_grad = {'gamma': dgamma, 'beta': dbeta}
 
-        return dx
+        return dX
 
     def build(self, x):
         gamma = np.ones(x.shape[-1])

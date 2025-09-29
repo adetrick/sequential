@@ -18,6 +18,10 @@ class TransformerDense(Layer):
         self.built = False
 
     def __call__(self, X):
+        '''
+        X: np.ndarray 
+            Inputs of shape (num_batches, time_steps, d_model).
+        '''
         if not self.built:
             self.build(X)
         # unpack trainable params
@@ -85,9 +89,13 @@ class TransformerDense(Layer):
     def build(self, x):
         # initialize weights based on last dimension of the input (d_model)
         d_model = x.shape[-1]
+        # weights for first linear transform
         W1 = np.random.randn(d_model, self.units) * .01
+        # bias for first linear transform
         b1 = np.zeros((1, self.units))
+        # weights for second linear transform
         W2 = np.random.randn(self.units, d_model) * .01
+        # bias for second linear transform
         b2 = np.zeros((1, d_model))
         self.trainable_params = {'W1': W1, 'b1': b1, 'W2': W2, 'b2': b2}
         self.built = True

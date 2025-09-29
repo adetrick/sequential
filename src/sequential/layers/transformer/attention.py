@@ -47,7 +47,7 @@ class Attention(Layer):
         Args
         ----
         X: np.ndarray
-            Sequential inputs shaped (batch_size, time_steps, d_model).
+            Inputs of shape (batch_size, time_steps, d_model).
         mask: np.ndarray or None
             optional look-ahead mask preventing future time steps 
             from being attended to, ensuring autoregressive consistency. 
