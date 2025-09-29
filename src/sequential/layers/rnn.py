@@ -126,16 +126,16 @@ class RNN(Layer):
             # upstream gradients for the current time step, adding in upstream
             # h gradients
             ug = upstream_grad[:, i, :] + upstream_dh
-            # gradients of z in h = self.activate(z), multiplied by upstream gradients
+            # gradient of z in h = self.activate(z), multiplied by upstream gradients
             dz = self.activate.backward(h) * ug
             # gradient of bias in z += bias, adding bias gradients from previous
             # time steps
             if b is not None:
                 db += np.sum(dz, axis=0, keepdims=True)
-            # gradients of weights in z = np.dot(xh, W),
+            # gradient of W in z = np.dot(xh, W),
             # adding gradients from previous time steps
             dW += np.dot(xh.T, dz)
-            # gradients of xh in z = np.dot(xh, W)
+            # gradient of xh in z = np.dot(xh, W)
             dxh = np.dot(dz, W.T)
             # xh is a concatenation of x (input) and h (hidden state)
             # at the current time step, so dxh needs to be sliced get
