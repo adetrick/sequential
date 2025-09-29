@@ -189,7 +189,7 @@ class LSTM(Layer):
             # xh is a concatenation of x (input) and h (hidden state)
             # at the current time step, so dxh needs to be sliced get
             # the gradients for each
-            dx, dh = dxh[:, :self.units], dxh[:, self.units:]
+            dx, dh = dxh[:, :self.X_shape[-1]], dxh[:, self.X_shape[-1]:]
             # save input gradients for the current time step
             dX[:, i, :] = dx
             # update upstream hidden gradients for the next time step
