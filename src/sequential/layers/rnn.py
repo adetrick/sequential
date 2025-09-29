@@ -160,10 +160,10 @@ class RNN(Layer):
         # initialize weights for the inputs and hidden state based
         # on the last dimension of the input. The number of units
         # is added to the rows to account for the hidden state.
-        weights = .01 * np.random.randn(X.shape[-1] + self.units, self.units)
+        W = .01 * np.random.randn(X.shape[-1] + self.units, self.units)
         # bias
         b = np.zeros((1, self.units)) if self.use_bias else None
-        self.trainable_params = {'W': weights, 'b': b}
+        self.trainable_params = {'W': W, 'b': b}
         self.built = True
 
     def reset_state(self):
