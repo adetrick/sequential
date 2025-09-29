@@ -70,9 +70,8 @@ class LSTM(Layer):
         for i in range(X.shape[1]):
             # inputs for the current time step
             x = X[:, i, :]
-            # concatenate the hidden state and the
-            # inputs from the current time step to
-            # calculate z with a single dot product
+            # concatenate the inputs and hidden state for the current
+            # time step to calculate z with a single dot product
             xh = np.concatenate([x, h], axis=1)
             z = np.dot(xh, W)
             if bias is not None:
