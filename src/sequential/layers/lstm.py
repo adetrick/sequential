@@ -54,7 +54,7 @@ class LSTM(Layer):
         self.X_shape = X.shape
         self.fcache = []
         # unpack trainable params
-        weights = self.trainable_params['W']
+        W = self.trainable_params['W']
         bias = self.trainable_params['b']
         # init hidden state
         hidden_states = np.zeros((X.shape[0], X.shape[1], self.units))
@@ -74,7 +74,7 @@ class LSTM(Layer):
             # inputs from the current time step to
             # calculate z with a single dot product
             xh = np.concatenate([x, h], axis=1)
-            z = np.dot(xh, weights)
+            z = np.dot(xh, W)
             if bias is not None:
                 z += bias
             # forget gate
@@ -211,7 +211,7 @@ class LSTM(Layer):
         # units is added to the rows to account for the hidden state,
         # and the columns are multiplied by 4 to include the forget, input,
         # cell, and output gates.
-        weights = .01 * np.random.randn(X.shape[-1] + self.units, self.units * 4)
+        W = .01 * np.random.randn(X.shape[-1] + self.units, self.units * 4)
         # bias
         b = None
         if self.use_bias:
@@ -219,7 +219,7 @@ class LSTM(Layer):
             # init the forget bias with ones to encourage the model
             # to retain information early on
             b[:self.units] = 1
-        self.trainable_params = {'W': weights, 'b': b}
+        self.trainable_params = {'W': W, 'b': b}
         self.built = True
 
     def reset_state(self):
