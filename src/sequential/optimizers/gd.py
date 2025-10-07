@@ -24,4 +24,4 @@ class GradientDescent:
             # set the gradients to the velocity
             grads = self.v
 
-        return params - (grads * self.alph)
+        return params - (grads * self.alpha)
