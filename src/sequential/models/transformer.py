@@ -75,13 +75,15 @@ class Transformer(Model):
         # output layer to project each embedded d_model dimension down to
         # a single output value
         self.output_layer = Dense(1, activation=None, use_bias=False)
+        self.mask = None
         self.validate()
 
     def predict(self, X, inference_mode):
         # create a self attention mask for the decoder
-        mask = self.generate_mask(X.shape[1], self.num_heads > 1)
+        if self.mask is None:
+            self.mask = self.generate_mask(X.shape[1], self.num_heads > 1)
         # feed inputs into the decoder
-        dec_out = self.decoder(X, mask, inference_mode)
+        dec_out = self.decoder(X, self.mask, inference_mode)
         # project d_model dimension down to a single output dimension
         out = self.output_layer(dec_out)
         # return output through a dense time compressor if the
