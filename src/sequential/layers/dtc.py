@@ -53,6 +53,6 @@ class DenseTimeCompress(Layer):
     def build(self, X):
         # initialize weights based on the time dimension of
         # the input
-        W = .01 * np.random.rand(self.units, X.shape[1])
+        W = .01 * np.random.randn(self.units, X.shape[1])
         self.trainable_params = {'W': W}
         self.built = True
