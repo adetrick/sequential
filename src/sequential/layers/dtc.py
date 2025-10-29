@@ -1,6 +1,5 @@
 import numpy as np
 from sequential.layers import Layer
-from sequential.initializers import glorot_uniform
 
 
 class DenseTimeCompress(Layer):

@@ -1,7 +1,6 @@
 import numpy as np
 from sequential.layers import Layer
 from sequential.activations import get_activation
-from sequential.initializers import he_normal, glorot_uniform
 
 
 class Dense(Layer):
