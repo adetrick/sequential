@@ -1,7 +1,6 @@
 import numpy as np
 from sequential.layers import Layer
 from sequential.activations import Sigmoid, Tanh
-from sequential.initializers import glorot_uniform
 
 
 class LSTM(Layer):
