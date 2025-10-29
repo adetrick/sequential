@@ -1,5 +1,6 @@
 import numpy as np
 from sequential.layers import Layer
+from sequential.initializers import glorot_uniform
 
 
 class DenseTimeCompress(Layer):
@@ -53,6 +54,6 @@ class DenseTimeCompress(Layer):
     def build(self, X):
         # initialize weights based on the time dimension of
         # the input
-        W = .01 * np.random.rand(self.units, X.shape[1])
+        W = glorot_uniform(self.units, X.shape[1])
         self.trainable_params = {'W': W}
         self.built = True

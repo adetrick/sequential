@@ -1,6 +1,7 @@
 import numpy as np
 from sequential.layers import Layer
 from sequential.activations import get_activation
+from sequential.initializers import he_normal, glorot_uniform
 
 
 class RNN(Layer):
@@ -160,7 +161,10 @@ class RNN(Layer):
         # initialize weights for the inputs and hidden state based
         # on the last dimension of the input. The number of units
         # is added to the rows to account for the hidden state.
-        W = .01 * np.random.randn(X.shape[-1] + self.units, self.units)
+        if self.activation == 'relu':
+            W = he_normal(X.shape[-1] + self.units, self.units)
+        else:
+            W = glorot_uniform(X.shape[-1] + self.units, self.units)
         # bias
         b = np.zeros((1, self.units)) if self.use_bias else None
         self.trainable_params = {'W': W, 'b': b}
