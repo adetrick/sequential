@@ -104,10 +104,7 @@ class Dense(Layer):
 
     def build(self, X):
         # initialize weights based on last dimension of the input
-        if self.activation == 'relu':
-            W = he_normal(X.shape[-1], self.units)
-        else:
-            W = glorot_uniform(X.shape[-1], self.units)
+        W = .01 * np.random.randn(X.shape[-1], self.units)
         # bias
         b = np.zeros((1, self.units)) if self.use_bias else None
         self.trainable_params = {'W': W, 'b': b}

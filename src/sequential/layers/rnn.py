@@ -96,7 +96,7 @@ class RNN(Layer):
         iterating over time steps in reverse.
 
         Since the hidden state influences subsequent
-        time steps in the forward pass, its gradient is 
+        time steps in the forward pass, its gradient is
         accumulated and passed back at each step.
 
         Variable names mirror those in the forward pass, with a
@@ -106,7 +106,7 @@ class RNN(Layer):
             h -> dh
             X -> dX
 
-        This helps track how forward variables contribute to 
+        This helps track how forward variables contribute to
         the propagated gradients.
         '''
         # unpack trainable params
@@ -161,10 +161,7 @@ class RNN(Layer):
         # initialize weights for the inputs and hidden state based
         # on the last dimension of the input. The number of units
         # is added to the rows to account for the hidden state.
-        if self.activation == 'relu':
-            W = he_normal(X.shape[-1] + self.units, self.units)
-        else:
-            W = glorot_uniform(X.shape[-1] + self.units, self.units)
+        W = .01 * np.random.randn(X.shape[-1] + self.units, self.units)
         # bias
         b = np.zeros((1, self.units)) if self.use_bias else None
         self.trainable_params = {'W': W, 'b': b}
