@@ -1,5 +1,4 @@
 import numpy as np
-import keras_nlp
 import keras
 
 
@@ -10,7 +9,8 @@ def build_keras_decoder_only_transformer(input_shape,
                                          num_layers=6,
                                          ff_units=64,
                                          loss='mse',
-                                         learning_rate=.001
+                                         learning_rate=.001,
+                                         normalize=False
                                          ):
     '''
 
@@ -46,47 +46,52 @@ def build_keras_decoder_only_transformer(input_shape,
     '''
     inputs = keras.layers.Input(shape=input_shape)
 
-    # feature projection (embed layer)
-    embed_layer = keras.layers.Dense(d_model, use_bias=True)
-    x = embed_layer(inputs)
+    # embedding / projection
+    x = keras.layers.Dense(d_model, use_bias=True)(inputs)
 
     # stack decoder layers
-    decoder_layers = [
-        keras_nlp.layers.TransformerDecoder(
+    for _ in range(num_layers):
+
+        # --- Self-attention ---
+
+        attn_out = keras.layers.MultiHeadAttention(
             num_heads=num_heads,
-            intermediate_dim=ff_units,
+            key_dim=d_model // num_heads,
             dropout=0.0,
-            activation="relu",
-            normalize_first=False
-        ) for _ in range(num_layers)
-    ]
+        )(x, x, use_causal_mask=True)
+        # residual connection
+        x = keras.layers.Add()([x, attn_out])
+        if normalize:
+            x = keras.layers.LayerNormalization()(x)
 
-    for decoder in decoder_layers:
-        # pass x as both decoder_sequence and encoder_sequence
-        x = decoder(x, x, use_causal_mask=True)
+        # --- Feed-forward (two linear layers with ReLU in between) --
 
-    # project hidden dim (d_model) back to 1
-    x = keras.layers.Dense(1)(x)
+        # first projection layer plus ReLU
+        ff = keras.layers.Dense(ff_units, activation="relu")(x)
+        # second projection back to model dim
+        ff = keras.layers.Dense(d_model, activation=None)(ff)
+        # residual connection
+        x = keras.layers.Add()([x, ff])
+        if normalize:
+            x = keras.layers.LayerNormalization()(x)
+
+    # output projection
+    x = keras.layers.Dense(1, use_bias=False, activation=None)(x)
 
     input_time_steps = input_shape[0]
-
-    if target_time_steps is not None and target_time_steps < input_time_steps:
-        # reshape time axis to flat
+    # if there are fewer time steps in the target than in the input
+    # sequence, project the output down to the number of
+    # target time steps
+    if target_time_steps and target_time_steps < input_time_steps:
         x = keras.layers.Reshape((input_time_steps,))(x)
-        # learnable compression to target length
-        x = keras.layers.Dense(target_time_steps)(x)
-        # restore to 3D shape
-        outputs = keras.layers.Reshape((target_time_steps, 1))(x)
-    else:
-        # final projection to 1 value per time step
-        outputs = keras.layers.Dense(1)(x)
-    model = keras.Model(inputs, outputs)
+        x = keras.layers.Dense(target_time_steps, activation=None)(x)
+        x = keras.layers.Reshape((target_time_steps, 1))(x)
 
+    model = keras.Model(inputs, x)
     model.compile(
-        optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
-        loss=loss
+        optimizer=keras.optimizers.Adam(learning_rate),
+        loss=loss,
     )
-
     return model
 
 
