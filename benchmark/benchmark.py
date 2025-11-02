@@ -117,7 +117,7 @@ def run_benchmark():
         'target_time_steps': 12,
         'learning_rate': 1e-3,
         'loss': "mae",
-        'epochs': 10,
+        'epochs': 1000,
     }
 
     # model architectures for each model type
