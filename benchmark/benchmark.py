@@ -14,9 +14,18 @@ from tqdm import tqdm
 '''
 Runs a benchmark between Keras and Sequential frameworks.
 
-Tests two monthly files with basic configuration and simple
-model architectures that stay fixed across files and both
+Tests two monthly time series datasets with basic configuration
+and simple model architectures that remain fixed across both
 frameworks.
+
+
+Objective
+---------
+
+Compare the speed and accuracy of Keras and Sequential at
+modeling and forecasting time series data using high-level APIs
+with minimal configuration (i.e. "out-of-the-box" performance).
+
 
 Configuration
 --------------
@@ -24,63 +33,74 @@ Configuration
 Dense, RNN, LSTM models:
 
 Training data consists of overlapping sequences of 36 time
-steps, each one predicting the next 12 time steps (i.e. the
-models are learning to predict 1 year ahead given 3 years
-of input data). Each model consists of 2 layers with 48 and
-24 neurons, respectively, followed by a final Dense output
-layer.
+steps, each predicting the next 12 time steps (i.e., the models
+learn to predict 1 year ahead given 3 years of input data).
+Each model has two layers with 48 and 24 neurons, respectively,
+followed by a final Dense output layer.
 
 Transformers:
 
-Training data consists of overlapping sequences of 60
-time steps to predict the next 12 time steps (i.e. the
-models are learning to predict 1 year ahead given 5 years
-of input data). Each model consists of 2 decoder layers
-with a model dimensionality of 50.
+Transformers were excluded from the benchmark to focus 
+on comparing built-in, high-level model APIs. Sequential
+offers a ready-to-use Transformer model for time series 
+data which users can instantiate with minimal arguments 
+train directly. Keras doesn't yet offer this level of 
+abstraction and requires a custom composition
+of base layers.
+
+Transformers were excluded from the benchmark to focus on
+comparing built-in, high-level model APIs. Sequential offers a
+ready-to-use Transformer model for time series data that users
+can instantiate and train directly with minimal arguments.
+Keras, by contrast, currently requires custom composition of
+base layers (e.g., MultiHeadAttention, Dense, LayerNorm), 
+making it less comparable as an "out-of-the-box" solution.
+
 
 Training
 --------
 
-The benchmark iterates through 5 different random seeds
-per dataset and reports the average validation loss and 
-fit time (plus the standard deviation for each) across 
-the runs.
+The benchmark iterates through five different random seeds per
+dataset and reports the average validation loss and fit time
+(with standard deviation for each) across runs.
 
-All models were trained for a fixed number of N epochs
-without early stopping to ensure identical training schedules 
-across frameworks.
+All models were trained for a fixed number of epochs without
+early stopping to ensure identical training schedules across
+frameworks.
 
 
 Validation
 ----------
 
-Validation loss is computed after training using autoregressive 
+Validation loss is computed after training using autoregressive
 forecasts.
 
 A validation set of 12 time steps is separated from each dataset
-before creating the training sequences. After fitting the
-model, an autoregressive forecast is made and the difference
-between the forecast and real data is logged as `val_loss`.
+before creating the training sequences. After fitting the model,
+an autoregressive forecast is made, and the difference between
+the forecast and actual data is logged as `val_loss`.
 
-Autoregressive forecasting means that for each step in a 
-forecast of length n, a full sequence of `time_steps` is
-predicted but only the first value is kept as the forecsted 
-value for future time step t. The forecasted value is prepended 
-to the input sequence and the cycle continues until the forecast 
-steps are complete.
+Autoregressive forecasting means that for each step in a forecast
+of length n, a full sequence of `time_steps` is predicted but
+only the first value is retained as the forecasted value for the
+next time step t. This predicted value is appended to the input
+sequence, and the cycle repeats until all forecast steps are
+complete.
 
-Sequential generates autoregressive forecasts natively with 
-the get_forecast() method. However, Keras does not so the 
-generate_keras_forecast() function was created.
+Sequential generates autoregressive forecasts natively with the
+`get_forecast()` method. Keras does not, so the
+`generate_keras_forecast()` function was implemented for parity.
 
 
 Data sources
 ------------
 
-AirPassengers: https://www.kaggle.com/datasets/rakannimer/air-passengers
+AirPassengers: 
+https://www.kaggle.com/datasets/rakannimer/air-passengers
 
-useia_renewable_energy_production.csv: https://www.eia.gov/renewable/data.php,
-downloaded from https://www.datamago.com/open-data/renewable-energy-consumption
+Renewable Energy Production: 
+https://www.eia.gov/renewable/data.php (downloaded from 
+https://www.datamago.com/open-data/renewable-energy-consumption)
 '''
 
 
@@ -98,15 +118,6 @@ def run_benchmark():
         'learning_rate': 1e-3,
         'loss': "mae",
         'epochs': 10,
-    }
-
-    # transformer specific configs
-    transformer_config = {
-        'num_layers': 2,
-        'd_model': 50,
-        'units': 64,
-        'time_steps': 60,
-        'num_heads': 1,
     }
 
     # model architectures for each model type
@@ -150,10 +161,6 @@ def run_benchmark():
                 keras.layers.Dense(config['target_time_steps']),
                 keras.layers.Reshape((config['target_time_steps'], 1))
             ]
-        },
-        'transformer': {
-            'sequential': transformer_config,
-            'keras': transformer_config
         }
     }
 
@@ -176,10 +183,6 @@ def run_benchmark():
         X, X_train, X_test, y_train, y_test, scaler = sequential.preprocessing.preprocessing(
             X_orig, val_len, config['time_steps'], target_time_steps=config['target_time_steps'])
 
-        # scale and turn X into sequences for transformer models
-        X_transformer, X_train_transformer, X_test_transformer, y_train_transformer, y_test_transformer, scaler_transformer = sequential.preprocessing.preprocessing(
-            X_orig, val_len, transformer_config['time_steps'], target_time_steps=config['target_time_steps'], autoregressive=True)
-
         # save a dictionary of results for each random seed
         results[filename] = {
             'sequential': {k: [] for k in model_map.keys()},
@@ -198,28 +201,9 @@ def run_benchmark():
 
                     print(f"{framework.title()} {model_type} model with random seed {seed}")
 
-                    X_train_to_use = X_train
-                    X_test_to_use = X_test
-                    y_train_to_use = y_train
-                    y_test_to_use = y_test
-                    if model_type == 'transformer':
-                        X_train_to_use = X_train_transformer
-                        X_test_to_use = X_test_transformer
-                        y_train_to_use = y_train_transformer
-                        y_test_to_use = y_test_transformer
-
                     if framework == 'sequential':
-                        if model_type == 'transformer':
-                            model = sequential.models.Transformer(
-                                num_decoder_layers=model_arch['num_layers'],
-                                d_model=model_arch['d_model'],
-                                units=model_arch['units'],
-                                num_heads=model_arch['num_heads'],
-                                optimizer_args={'alpha': config['learning_rate']},
-                                loss=config['loss'])
-                        else:
-                            model = sequential.models.NeuralNet(
-                                model_arch, optimizer='adam', optimizer_args={'alpha': config['learning_rate']}, loss=config['loss'])
+                        model = sequential.models.NeuralNet(
+                            model_arch, optimizer='adam', optimizer_args={'alpha': config['learning_rate']}, loss=config['loss'])
 
                         fit_kwargs = {
                             'epochs': config['epochs'],
@@ -227,17 +211,7 @@ def run_benchmark():
                         }
 
                     else:
-                        if model_type == 'transformer':
-                            model = build_keras_decoder_only_transformer(
-                                input_shape=(X_train_to_use.shape[1], X_train_to_use.shape[2]),
-                                target_time_steps=config['target_time_steps'],
-                                d_model=model_arch['d_model'],
-                                num_heads=model_arch['num_heads'],
-                                num_layers=model_arch['num_layers'],
-                                ff_units=model_arch['units']
-                            )
-                        else:
-                            model = keras.Sequential(model_arch)
+                        model = keras.Sequential(model_arch)
 
                         model.compile(loss=config['loss'], optimizer=keras.optimizers.Adam(
                             learning_rate=config['learning_rate']))
@@ -252,25 +226,25 @@ def run_benchmark():
 
                     if framework == 'sequential':
                         fitted_values, loss_history = model.fit(
-                            X_train_to_use, y_train_to_use, **fit_kwargs)
+                            X_train, y_train, **fit_kwargs)
                     else:
-                        history = model.fit(X_train_to_use, y_train_to_use, **fit_kwargs)
+                        history = model.fit(X_train, y_train, **fit_kwargs)
                         loss_history = history.history['loss']
 
                     fit_time = time.perf_counter() - fit_start
 
                     if framework == 'sequential':
                         forecast = model.get_forecast(
-                            config['target_time_steps'], init_input=X_test_to_use)
+                            config['target_time_steps'], init_input=X_test)
                     else:
                         forecast = generate_keras_forecast(
-                            config['target_time_steps'], X_test_to_use, model)
+                            config['target_time_steps'], X_test, model)
 
                     results[filename][framework][model_type].append({
                         'fit_time': fit_time,
                         'fit_loss': np.round(loss_history[-1], 6),
                         'val_loss': np.round(sequential.metrics.mean_squared_error(
-                            y_test_to_use, forecast), 6)
+                            y_test, forecast), 6)
                     })
 
     run_time = (time.perf_counter() - benchmark_start) / 60
