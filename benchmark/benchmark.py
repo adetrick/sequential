@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import time
 import random
+import cpuinfo
 import keras
 import sequential
 import json
@@ -274,16 +275,29 @@ def run_benchmark():
 
     run_time = (time.perf_counter() - benchmark_start) / 60
 
+    # get processor info
+    processor_info = cpuinfo.get_cpu_info()
+    # gpu info
+    gpu_devices = tf.config.list_physical_devices('GPU')
+    # save gpu names
+    gpu_names = [gpu.name for gpu in gpu_devices]
+
     # calculate the val loss and fit time mean/std across
     # files and random seeds
     summary = {
-        # save environment info for reproducibility
+        # save environment and processor info for reproducibility
         'environment': {
             "python_version": platform.python_version(),
             "tensorflow_version": tf.__version__,
             "numpy_version": np.__version__,
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
         },
+        'CPU': {
+            'name': processor_info.get('brand_raw'),
+            'cores': processor_info.get('count'),
+            'frequency': processor_info.get('hz_actual_friendly'),
+        },
+        'GPU': gpu_names,
         'run_time_minutes': run_time,
         # track global mean loss/fit time per framework
         'summary': {},
