@@ -1,6 +1,7 @@
 import numpy as np
 from sequential.layers import Layer
 from sequential.activations import Softmax
+from sequential.initializers import glorot_uniform
 
 
 class Attention(Layer):
@@ -193,9 +194,9 @@ class Attention(Layer):
         self.d_head = self.d_model // self.num_heads if self.num_heads > 1 else None
         # weights for Q, K, and V linear projections are combined into
         # a single matrix (W)
-        W = np.random.randn(self.d_model, self.d_model * 3) * .01
+        W = glorot_uniform(self.d_model, self.d_model * 3)
         # output weights
-        Wo = np.random.randn(self.d_model, self.d_model) * .01
+        Wo = glorot_uniform(self.d_model, self.d_model)
         self.trainable_params = {'W': W, 'Wo': Wo}
         self.built = True
 

@@ -1,6 +1,7 @@
 import numpy as np
 from sequential.layers import Layer
 from sequential.activations import Relu
+from sequential.initializers import he_normal
 
 
 class TransformerDense(Layer):
@@ -90,11 +91,11 @@ class TransformerDense(Layer):
         # initialize weights based on last dimension of the input (d_model)
         d_model = x.shape[-1]
         # weights for first linear transform
-        W1 = np.random.randn(d_model, self.units) * .01
+        W1 = he_normal(d_model, self.units)
         # bias for first linear transform
         b1 = np.zeros((1, self.units))
         # weights for second linear transform
-        W2 = np.random.randn(self.units, d_model) * .01
+        W2 = he_normal(self.units, d_model)
         # bias for second linear transform
         b2 = np.zeros((1, d_model))
         self.trainable_params = {'W1': W1, 'b1': b1, 'W2': W2, 'b2': b2}
