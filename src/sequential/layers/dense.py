@@ -1,6 +1,7 @@
 import numpy as np
 from sequential.layers import Layer
 from sequential.activations import get_activation
+from sequential.initializers import glorot_uniform, he_normal
 
 
 class Dense(Layer):
@@ -103,7 +104,10 @@ class Dense(Layer):
 
     def build(self, X):
         # initialize weights based on last dimension of the input
-        W = .01 * np.random.randn(X.shape[-1], self.units)
+        if self.activation == 'relu':
+            W = he_normal(X.shape[-1], self.units) * .01
+        else:
+            W = glorot_uniform(X.shape[-1], self.units) * .01
         # bias
         b = np.zeros((1, self.units)) if self.use_bias else None
         self.trainable_params = {'W': W, 'b': b}
