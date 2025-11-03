@@ -95,7 +95,7 @@ class RNN(Layer):
         iterating over time steps in reverse.
 
         Since the hidden state influences subsequent
-        time steps in the forward pass, its gradient is 
+        time steps in the forward pass, its gradient is
         accumulated and passed back at each step.
 
         Variable names mirror those in the forward pass, with a
@@ -105,7 +105,7 @@ class RNN(Layer):
             h -> dh
             X -> dX
 
-        This helps track how forward variables contribute to 
+        This helps track how forward variables contribute to
         the propagated gradients.
         '''
         # unpack trainable params
