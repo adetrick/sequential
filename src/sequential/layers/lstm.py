@@ -1,6 +1,7 @@
 import numpy as np
 from sequential.layers import Layer
 from sequential.activations import Sigmoid, Tanh
+from sequential.initializers import glorot_uniform
 
 
 class LSTM(Layer):
@@ -210,7 +211,7 @@ class LSTM(Layer):
         # units is added to the rows to account for the hidden state,
         # and the columns are multiplied by 4 to include the forget, input,
         # cell, and output gates.
-        W = .01 * np.random.randn(X.shape[-1] + self.units, self.units * 4)
+        W = glorot_uniform(X.shape[-1] + self.units, self.units * 4) * .01
         # bias
         b = None
         if self.use_bias:
