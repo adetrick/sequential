@@ -14,17 +14,16 @@ from tqdm import tqdm
 '''
 Runs a benchmark between Keras and Sequential frameworks.
 
-Tests two monthly time series datasets with basic configuration
-and simple model architectures that remain fixed across both
-frameworks.
+Tests two monthly time series datasets with basic configuration and 
+simple model architectures that remain fixed across both frameworks.
 
 
 Objective
 ---------
 
-Compare the speed and accuracy of Keras and Sequential at
-modeling and forecasting time series data using high-level APIs
-with minimal configuration (i.e. "out-of-the-box" performance).
+Compare the speed and accuracy of Keras and Sequential at modeling 
+and forecasting time series data using high-level APIs with minimal 
+configuration (i.e. "out-of-the-box" performance).
 
 
 Configuration
@@ -32,41 +31,38 @@ Configuration
 
 Dense, RNN, LSTM models:
 
-Training data consists of overlapping sequences of 36 time
-steps, each predicting the next 12 time steps (i.e., the models
-learn to predict 1 year ahead given 3 years of input data).
-Each model has two layers with 48 and 24 neurons, respectively,
-followed by a final Dense output layer.
+Training data consists of overlapping sequences of 36 time steps, 
+each predicting the next 12 time steps (i.e., the models learn to 
+predict 1 year ahead given 3 years of input data). Each model has 
+two layers with 48 and 24 neurons, respectively, followed by a final 
+Dense output layer.
 
 Transformers:
 
-Transformers were excluded from the benchmark to focus 
-on comparing built-in, high-level model APIs. Sequential
-offers a ready-to-use Transformer model for time series 
-data which users can instantiate with minimal arguments 
-train directly. Keras doesn't yet offer this level of 
-abstraction and requires a custom composition
-of base layers.
+Transformers were excluded from the benchmark to focus on comparing 
+built-in, high-level model APIs. Sequential offers a ready-to-use 
+Transformer model for time series data which users can instantiate 
+with minimal arguments train directly. Keras doesn't yet offer this 
+level of abstraction and requires a custom composition of base layers.
 
-Transformers were excluded from the benchmark to focus on
-comparing built-in, high-level model APIs. Sequential offers a
-ready-to-use Transformer model for time series data that users
-can instantiate and train directly with minimal arguments.
-Keras, by contrast, currently requires custom composition of
-base layers (e.g., MultiHeadAttention, Dense, LayerNorm), 
-making it less comparable as an "out-of-the-box" solution.
+Transformers were excluded from the benchmark to focus on comparing 
+built-in, high-level model APIs. Sequential offers a ready-to-use 
+Transformer model for time series data that users can instantiate 
+and train directly with minimal arguments. Keras, by contrast, 
+currently requires custom composition of base layers 
+(e.g., MultiHeadAttention, Dense, LayerNorm), making it less 
+comparable as an "out-of-the-box" solution.
 
 
 Training
 --------
 
-The benchmark iterates through five different random seeds per
-dataset and reports the average validation loss and fit time
-(with standard deviation for each) across runs.
+The benchmark performs 10 trials per dataset and reports the average 
+validation loss and fit time (with standard deviation for each) for 
+each framework and model type across runs.
 
-All models were trained for a fixed number of epochs without
-early stopping to ensure identical training schedules across
-frameworks.
+All models were trained for a fixed number of epochs without early 
+stopping to ensure identical training schedules across frameworks.
 
 
 Validation
@@ -77,19 +73,25 @@ forecasts.
 
 A validation set of 12 time steps is separated from each dataset
 before creating the training sequences. After fitting the model,
-an autoregressive forecast is made, and the difference between
-the forecast and actual data is logged as `val_loss`.
+an autoregressive forecast is generated, and the difference 
+between the forecast and actual data is logged as `val_loss`.
 
-Autoregressive forecasting means that for each step in a forecast
-of length n, a full sequence of `time_steps` is predicted but
-only the first value is retained as the forecasted value for the
-next time step t. This predicted value is appended to the input
-sequence, and the cycle repeats until all forecast steps are
-complete.
+Autoregressive forecasting means that for each forecast step, the 
+model predicts a full sequence of length `time_steps`, but only the 
+first predicted value is retained as the forecasted value for that 
+future time step. This value is then appended to the input sequence, 
+and the cycle repeats until all forecast steps are complete.
 
 Sequential generates autoregressive forecasts natively with the
 `get_forecast()` method. Keras does not, so the
 `generate_keras_forecast()` function was implemented for parity.
+
+
+Reproducibility
+---------------
+No random seeds are fixed in this benchmark. Instead, each model 
+type is trained over 10 independent runs, and results are reported 
+as the mean ± standard deviation of validation loss and fit time.
 
 
 Data sources
@@ -107,9 +109,6 @@ https://www.datamago.com/open-data/renewable-energy-consumption)
 def run_benchmark():
 
     benchmark_start = time.perf_counter()
-
-    # force deterministic kernals for reproducibility
-    tf.config.experimental.enable_op_determinism()
 
     # model configuration
     config = {
@@ -183,23 +182,18 @@ def run_benchmark():
         X, X_train, X_test, y_train, y_test, scaler = sequential.preprocessing.preprocessing(
             X_orig, val_len, config['time_steps'], target_time_steps=config['target_time_steps'])
 
-        # save a dictionary of results for each random seed
+        # save a dictionary of results for each run
         results[filename] = {
             'sequential': {k: [] for k in model_map.keys()},
             'keras': {k: [] for k in model_map.keys()}
         }
 
-        for seed in tqdm([3, 7, 100, 500, 1000], desc=f"{filename} seeds"):
-
-            random.seed(seed)
-            np.random.seed(seed)
-            keras.utils.set_random_seed(seed)
+        # perform 10 runs per file
+        for i in tqdm(np.arange(10), desc=f"{filename} runs"):
 
             for model_type in model_map:
 
                 for framework, model_arch in model_map[model_type].items():
-
-                    print(f"{framework.title()} {model_type} model with random seed {seed}")
 
                     if framework == 'sequential':
                         model = sequential.models.NeuralNet(
@@ -233,6 +227,8 @@ def run_benchmark():
 
                     fit_time = time.perf_counter() - fit_start
 
+                    # generate autoreregressive forecast to
+                    # compare to the validation set
                     if framework == 'sequential':
                         forecast = model.get_forecast(
                             config['target_time_steps'], init_input=X_test)
@@ -242,7 +238,9 @@ def run_benchmark():
 
                     results[filename][framework][model_type].append({
                         'fit_time': fit_time,
+                        # save final training loss
                         'fit_loss': np.round(loss_history[-1], 6),
+                        # save validation set loss
                         'val_loss': np.round(sequential.metrics.mean_squared_error(
                             y_test, forecast), 6)
                     })
@@ -256,8 +254,8 @@ def run_benchmark():
     # save gpu names
     gpu_names = [gpu.name for gpu in gpu_devices]
 
-    # calculate the val loss and fit time mean/std across
-    # files and random seeds
+    # calculate the validation loss and fit time mean/std
+    # across files and runs
     summary = {
         # save environment and processor info for reproducibility
         'environment': {
@@ -284,7 +282,7 @@ def run_benchmark():
             'keras': {k: {} for k in model_map.keys()}
         }
         for framework, models_res in results[filename].items():
-            # track loss and fit times across all files and seeds
+            # track loss and fit times across all files and runs
             # for each framework
             if framework not in summary['summary']:
                 summary['summary'][framework] = {
@@ -301,7 +299,7 @@ def run_benchmark():
                     'val_loss_std': np.std(val_losses),
                     'fit_loss_mean': np.mean(fit_losses),
                     'fit_loss_std': np.std(val_losses),
-                    'fit_time_mean': np.mean(fit_times),
+                    'fit_time_mean_seconds': np.mean(fit_times),
                     'fit_time_std': np.std(fit_times)
                 }
                 # add results to global val losses and fit times
@@ -316,7 +314,7 @@ def run_benchmark():
         summary['summary'][framework]['val_loss_std'] = np.std(data['val_losses'])
         summary['summary'][framework]['fit_loss_mean'] = np.mean(data['fit_losses'])
         summary['summary'][framework]['fit_loss_std'] = np.std(data['fit_losses'])
-        summary['summary'][framework]['fit_time_mean'] = np.mean(data['fit_times'])
+        summary['summary'][framework]['fit_time_mean_seconds'] = np.mean(data['fit_times'])
         summary['summary'][framework]['fit_time_std'] = np.std(data['fit_times'])
         # clean up
         del summary['summary'][framework]['val_losses']
@@ -339,7 +337,7 @@ def run_benchmark():
     print('\nTotal mean fit time:')
     for framework in ['sequential', 'keras']:
         print(
-            f"{framework.title()}: {summary['summary'][framework]['fit_time_mean']:.2f} ({summary['summary'][framework]['fit_time_std']:.2f} std)")
+            f"{framework.title()}: {summary['summary'][framework]['fit_time_mean_seconds']:.2f} ({summary['summary'][framework]['fit_time_std']:.2f} std)")
 
     print("\n=== Results per file ===")
 
@@ -354,9 +352,10 @@ def run_benchmark():
             print(f"\n-- {framework.title()} --")
             for model_type, stats in models.items():
                 print(f"{model_type.title()}:")
-                print(f"Val Loss:  {stats['val_loss_mean']:.4f} ± {stats['val_loss_std']:.4f}")
-                print(f"Fit Loss:  {stats['fit_loss_mean']:.2f}s ± {stats['fit_loss_std']:.2f}s")
-                print(f"Fit Time:  {stats['fit_time_mean']:.2f}s ± {stats['fit_time_std']:.2f}s")
+                print(f"Val Loss: {stats['val_loss_mean']:.4f} ± {stats['val_loss_std']:.4f}")
+                print(f"Fit Loss: {stats['fit_loss_mean']:.2f} ± {stats['fit_loss_std']:.2f}")
+                print(
+                    f"Fit Time: {stats['fit_time_mean_seconds']:.2f}s ± {stats['fit_time_std']:.2f}s")
                 flat_records.append({
                     "dataset": filename,
                     "framework": framework,
@@ -369,7 +368,9 @@ def run_benchmark():
         json.dump(summary, json_file, indent=4)
 
     # save results as CSV
-    pd.DataFrame(flat_records).to_csv("benchmark-res.csv", index=False)
+    df = pd.DataFrame(flat_records)
+    df = df.round(6)
+    df.to_csv("benchmark-res.csv", index=False)
 
 
 if __name__ == "__main__":
