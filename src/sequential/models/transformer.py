@@ -67,7 +67,6 @@ class Transformer(Model):
         self.optimizer = optimizer
         self.optimizer_args = optimizer_args if optimizer_args is not None else {}
         self.apply_positional_encoding = apply_positional_encoding
-        self.embedding_matrix = None
         # trainable embedding layer to project the features dimension of the
         # inputs from (batch_size, time_steps, features) --> (batch_size, time_steps, d_model)
         self.embed_layer = Dense(self.d_model, activation=None,
