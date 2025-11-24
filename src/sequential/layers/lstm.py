@@ -211,7 +211,7 @@ class LSTM(Layer):
         # units is added to the rows to account for the hidden state,
         # and the columns are multiplied by 4 to include the forget, input,
         # cell, and output gates.
-        W = glorot_uniform(X.shape[-1] + self.units, self.units * 4) * .01
+        W = glorot_uniform(X.shape[-1] + self.units, self.units * 4)
         # bias
         b = None
         if self.use_bias:
