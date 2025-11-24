@@ -30,7 +30,8 @@ class Transformer(Model):
             drop_rate=0,
             optimizer='adam',
             optimizer_args=None,
-            apply_positional_encoding=False):
+            apply_positional_encoding=False,
+            train_embeddings=False):
         '''
         Args
         ----
@@ -67,6 +68,7 @@ class Transformer(Model):
         self.optimizer = optimizer
         self.optimizer_args = optimizer_args if optimizer_args is not None else {}
         self.apply_positional_encoding = apply_positional_encoding
+        self.train_embeddings = train_embeddings
         # trainable embedding layer to project the features dimension of the
         # inputs from (batch_size, time_steps, features) --> (batch_size, time_steps, d_model)
         self.embed_layer = Dense(self.d_model, activation=None,
@@ -101,7 +103,7 @@ class Transformer(Model):
         # backprop through the decoder
         ddecoder = self.decoder.backward(doutput_layer)
         # backprop through the embedding layer
-        if self.embed_layer is not None:
+        if self.embed_layer is not None and self.train_embeddings:
             dembed_layer = self.embed_layer.backward(ddecoder)
 
     def generate_mask(self, seq_len, multihead=False):
