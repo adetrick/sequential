@@ -11,8 +11,8 @@ class Transformer(Model):
     Wraps a Decoder object and provides:
 
         - forward prediction with self attention and feed forward layers
-        - backpropagation through the decoder, output, embedding, and 
-          time compression layers
+        - backpropagation through the decoder, output, and optional 
+          embedding and time compression layers
         - parameter optimization with configurable optimizers
 
     Extends Model and implements the core methods required
@@ -31,7 +31,7 @@ class Transformer(Model):
             optimizer='adam',
             optimizer_args=None,
             apply_positional_encoding=False,
-            train_embeddings=False):
+            trainable_embeddings=False):
         '''
         Args
         ----
@@ -60,6 +60,10 @@ class Transformer(Model):
             Dictionary of hyperparameters passed to the optimizer (e.g., {'alpha': 0.001}).
         apply_positional_encoding: bool
             If True, positional encodings will be added to the embedded inputs.
+        trainable_embeddings: bool
+            If True, embedding layer weights are updated during training.
+            If False, the embedding layer is used in the forward pass but its
+            weights remain fixed (no gradient updates).
         '''
         self.d_model = d_model
         self.num_heads = num_heads
@@ -68,9 +72,9 @@ class Transformer(Model):
         self.optimizer = optimizer
         self.optimizer_args = optimizer_args if optimizer_args is not None else {}
         self.apply_positional_encoding = apply_positional_encoding
-        self.train_embeddings = train_embeddings
-        # trainable embedding layer to project the features dimension of the
-        # inputs from (batch_size, time_steps, features) --> (batch_size, time_steps, d_model)
+        self.trainable_embeddings = trainable_embeddings
+        # embedding layer to project the features dimension of the inputs from
+        # (batch_size, time_steps, features) --> (batch_size, time_steps, d_model)
         self.embed_layer = Dense(self.d_model, activation=None,
                                  use_bias=True) if self.d_model > 1 else None
         # output layer to project each embedded d_model dimension down to
@@ -102,9 +106,9 @@ class Transformer(Model):
         doutput_layer = self.output_layer.backward(dcost)
         # backprop through the decoder
         ddecoder = self.decoder.backward(doutput_layer)
-        # backprop through the embedding layer
-        if self.embed_layer is not None and self.train_embeddings:
-            dembed_layer = self.embed_layer.backward(ddecoder)
+        # backprop through the embedding layer (if trainable)
+        if self.embed_layer is not None and self.trainable_embeddings:
+            self.embed_layer.backward(ddecoder)
 
     def generate_mask(self, seq_len, multihead=False):
         '''
@@ -119,11 +123,11 @@ class Transformer(Model):
     def optimize(self, iter_num):
         '''
         Runs the optimize step for updating parameters in the decoder,
-        output, embedding, and time compression layers
+        output, embedding (if trainable), and time compression layers
         '''
         self.output_layer.optimize(self.optimizer, iter_num, **self.optimizer_args)
         self.decoder.optimize(self.optimizer, iter_num, self.optimizer_args)
-        if self.embed_layer is not None:
+        if self.embed_layer is not None and self.trainable_embeddings:
             self.embed_layer.optimize(self.optimizer, iter_num, **self.optimizer_args)
         if self.dtc is not None:
             self.dtc.optimize(self.optimizer, iter_num, **self.optimizer_args)
