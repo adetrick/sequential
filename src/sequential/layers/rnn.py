@@ -162,9 +162,9 @@ class RNN(Layer):
         # on the last dimension of the input. The number of units
         # is added to the rows to account for the hidden state.
         if self.activation == 'relu':
-            W = he_normal(X.shape[-1] + self.units, self.units) * .01
+            W = he_normal(X.shape[-1] + self.units, self.units)
         else:
-            W = glorot_uniform(X.shape[-1] + self.units, self.units) * .01
+            W = glorot_uniform(X.shape[-1] + self.units, self.units)
         # bias
         b = np.zeros((1, self.units)) if self.use_bias else None
         self.trainable_params = {'W': W, 'b': b}
